@@ -1,0 +1,127 @@
+# --- Install Dependencies (for Colab or local first-time setup only) ---
+# !pip install torch torchvision diffusers transformers pillow accelerate pandas
+
+import os
+import torch
+import pandas as pd
+from PIL import Image, ImageDraw, ImageFont
+from transformers import pipeline
+from diffusers import StableDiffusionPipeline
+
+# --- Step 1: Load CSV File ---
+def load_movies_from_csv(csv_path):
+    df = pd.read_csv(csv_path)
+    return df[['Title', 'Genre', 'Synopsis']]
+
+# --- Step 2: Genre Detection (if Genre column is missing or empty) ---
+def detect_genre(synopsis):
+    classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+    labels = ["action", "romantic", "thriller", "comedy", "dark", "sci-fi", "fantasy", "drama"]
+    result = classifier(synopsis, labels)
+    return result["labels"][0]
+
+# --- Step 3: Prompt Engineering ---
+def create_prompt(title, genre, synopsis, style):
+    corrected_synopsis = fix_spelling(synopsis)
+    return (
+        f"A {style} cinematic high-resolution movie poster for a {genre} film titled '{title}'. "
+        f"The story is about: {corrected_synopsis}. Designed to be visually engaging and atmospheric."
+    )
+
+# --- Step 4: Fix spelling in synopsis using a transformer model ---
+def fix_spelling(text):
+    from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+    tokenizer = AutoTokenizer.from_pretrained("oliverguhr/spelling-correction-english-base")
+    model = AutoModelForSeq2SeqLM.from_pretrained("oliverguhr/spelling-correction-english-base")
+    inputs = tokenizer([text], return_tensors="pt", padding=True)
+    with torch.no_grad():
+        outputs = model.generate(**inputs)
+    corrected_text = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+    return corrected_text
+
+# --- Step 5: Poster Generation using Stable Diffusion ---
+def generate_image(prompt, output_path="movie_poster.png"):
+    pipe = StableDiffusionPipeline.from_pretrained(
+        "CompVis/stable-diffusion-v1-4",
+        torch_dtype=torch.float16,
+        revision="fp16"
+    ).to("cuda")
+
+    image = pipe(prompt, height=768, width=512).images[0]
+    image.save(output_path)
+    return output_path
+
+# --- Step 6: Add Correct Movie Title to Poster Image ---
+def add_title(image_path, title, output_path="final_poster.png"):
+    image = Image.open(image_path).convert("RGB")
+    draw = ImageDraw.Draw(image)
+
+    try:
+        # Try to load a more appealing font if available
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 60)
+    except:
+        font = ImageFont.load_default()
+
+    # Split title into lines if too long
+    max_width = image.width - 100
+    words = title.split()
+    lines = []
+    line = ""
+    for word in words:
+        test_line = f"{line} {word}".strip()
+        width = draw.textlength(test_line, font=font)
+        if width <= max_width:
+            line = test_line
+        else:
+            lines.append(line)
+            line = word
+    lines.append(line)
+
+    y = 20
+    for line in lines:
+        text_width = draw.textlength(line, font=font)
+        x = (image.width - text_width) // 2
+        draw.text((x, y), line, font=font, fill="white")
+        y += 70  # line spacing
+
+    image.save(output_path)
+    return output_path
+
+# --- Complete Poster Generation Pipeline ---
+def main():
+    csv_path = "/content/sample_data/movies_sample.csv"  # <-- Update if different path
+    style = input("🎨 Choose style (futuristic, classical, retro, minimalist): ").strip().lower()
+
+    if not torch.cuda.is_available():
+        raise EnvironmentError("CUDA (GPU) not available. Run this in Google Colab or on a GPU machine.")
+
+    movies = load_movies_from_csv(csv_path)
+
+    for idx, row in movies.iterrows():
+        title = row['Title']
+        genre = row['Genre']
+        synopsis = row['Synopsis']
+
+        print(f"\n🎬 Processing Movie: {title}")
+
+        if pd.isna(genre) or genre.strip() == "":
+            genre = detect_genre(synopsis)
+            print("📌 Detected Genre:", genre)
+
+        prompt = create_prompt(title, genre, synopsis, style)
+        print("🧾 Prompt:", prompt)
+
+        raw_path = f"poster_raw_{idx}.png"
+        final_path = f"poster_final_{idx}.png"
+
+        print("🎨 Generating image from prompt...")
+        generate_image(prompt, output_path=raw_path)
+
+        print("✍️ Adding title to image...")
+        add_title(raw_path, title, output_path=final_path)
+
+        print(f"✅ Poster saved: {final_path}")
+
+# --- Run the script ---
+if __name__ == "__main__":
+    main()
