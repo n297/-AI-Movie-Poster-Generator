@@ -1,5 +1,3 @@
-# --- Install Dependencies (for Colab or local first-time setup only) ---
-# !pip install torch torchvision diffusers transformers pillow accelerate pandas
 
 import os
 import torch
@@ -8,19 +6,19 @@ from PIL import Image, ImageDraw, ImageFont
 from transformers import pipeline
 from diffusers import StableDiffusionPipeline
 
-# --- Step 1: Load CSV File ---
+# Step 1: Load CSV File ---
 def load_movies_from_csv(csv_path):
     df = pd.read_csv(csv_path)
     return df[['Title', 'Genre', 'Synopsis']]
 
-# --- Step 2: Genre Detection (if Genre column is missing or empty) ---
+# Step 2: Genre Detection (if Genre column is missing or empty) ---
 def detect_genre(synopsis):
     classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
     labels = ["action", "romantic", "thriller", "comedy", "dark", "sci-fi", "fantasy", "drama"]
     result = classifier(synopsis, labels)
     return result["labels"][0]
 
-# --- Step 3: Prompt Engineering ---
+# Step 3: Prompt Engineering ---
 def create_prompt(title, genre, synopsis, style):
     corrected_synopsis = fix_spelling(synopsis)
     return (
@@ -28,7 +26,7 @@ def create_prompt(title, genre, synopsis, style):
         f"The story is about: {corrected_synopsis}. Designed to be visually engaging and atmospheric."
     )
 
-# --- Step 4: Fix spelling in synopsis using a transformer model ---
+# Step 4: Fix spelling in synopsis using a transformer model ---
 def fix_spelling(text):
     from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
     tokenizer = AutoTokenizer.from_pretrained("oliverguhr/spelling-correction-english-base")
@@ -39,7 +37,7 @@ def fix_spelling(text):
     corrected_text = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
     return corrected_text
 
-# --- Step 5: Poster Generation using Stable Diffusion ---
+# Step 5: Poster Generation using Stable Diffusion ---
 def generate_image(prompt, output_path="movie_poster.png"):
     pipe = StableDiffusionPipeline.from_pretrained(
         "CompVis/stable-diffusion-v1-4",
@@ -51,13 +49,13 @@ def generate_image(prompt, output_path="movie_poster.png"):
     image.save(output_path)
     return output_path
 
-# --- Step 6: Add Correct Movie Title to Poster Image ---
+# Step 6: Add Correct Movie Title to Poster Image ---
 def add_title(image_path, title, output_path="final_poster.png"):
     image = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(image)
 
     try:
-        # Try to load a more appealing font if available
+        # load a more appealing font if available
         font = ImageFont.truetype("DejaVuSans-Bold.ttf", 60)
     except:
         font = ImageFont.load_default()
@@ -87,9 +85,9 @@ def add_title(image_path, title, output_path="final_poster.png"):
     image.save(output_path)
     return output_path
 
-# --- Complete Poster Generation Pipeline ---
+# Complete Poster Generation Pipeline ---
 def main():
-    csv_path = "/content/sample_data/movies_sample.csv"  # <-- Update if different path
+    csv_path = "/content/sample_data/movies_sample.csv"  
     style = input("🎨 Choose style (futuristic, classical, retro, minimalist): ").strip().lower()
 
     if not torch.cuda.is_available():
