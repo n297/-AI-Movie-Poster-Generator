@@ -3,7 +3,7 @@ This project generates AI-designed movie posters using textual descriptions (e.g
 It is a proof-of-concept that demonstrates how machine learning and generative AI can create visually compelling movie posters.
 
 📂 Dataset
-For this demo, we used a small synthetic dataset of 10 movies.
+For this demo, used a small synthetic dataset of 10 movies.
 Each entry includes:
 
 Movie Title
@@ -32,6 +32,7 @@ Hugging Face Transformers (for text encoding)
 
 
 🚀 How It Works
+
 Reads movie metadata from the dataset.
 
 Converts text (actors, plot, genre) into a descriptive prompt.
@@ -42,6 +43,7 @@ Optionally adds text overlays (title, credits).
 
 
 ⚠ Limitations
+
 Faces and fine details may not be perfect due to AI model limitations.
 
 Small dataset means the model is not fully fine-tuned.
